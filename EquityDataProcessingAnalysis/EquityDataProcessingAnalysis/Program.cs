@@ -11,86 +11,28 @@ namespace EquityDataProcessingAnalysis
         static async Task Main(string[] args)
         {
             Update("Main", "Starting Main");
-            
             try
             {
-                if (args[1].Equals("1"))
+                if (!Directory.Exists(Constants.TickersDir))
                 {
-                    if (!Directory.Exists(Constants.TickersDir))
-                    {
-                        await DownloadZipAsync(Constants.TickersUrl, Constants.TickersZip);
-                        ExtractZipFile(Constants.TickersZip, Constants.TickersDir);
-                    }
-
-                    if (!Directory.Exists(Constants.PricesDir))
-                    {
-                        await DownloadZipAsync(Constants.PricesUrl, Constants.PricesZip);
-                        ExtractZipFile(Constants.PricesZip, Constants.PricesDir);
-                    }
-
-                    LoadTickerData();
-                    LoadPriceData();
+                    await DownloadZipAsync(Constants.TickersUrl, Constants.TickersZip);
+                    ExtractZipFile(Constants.TickersZip, Constants.TickersDir);
                 }
-                else if (args[1].Equals("2"))
+
+                if (!Directory.Exists(Constants.PricesDir))
                 {
-                    Console.WriteLine("What would you like to calculate?");
-                    Console.WriteLine("\t1 - 52 Week High");
-                    Console.WriteLine("\t2 - 52 Week Low");
-                    Console.WriteLine("\t3 - 52 Day Moving Avg");
-
-                    string? procChoice = Console.ReadLine();
-
-                    var proc_dict = new Dictionary<string, string>
-                    { 
-                        ["1"] = Constants.proc_52_week_high,
-                        ["2"] = Constants.proc_52_week_low ,
-                        ["3"] = Constants.proc_52_day_moving_avg
-                    }; 
-
-
-                    Console.WriteLine("What ticker would you like to check?");
-                    string? ticker = Console.ReadLine();
-                    
-                    // $TODO confirm that ticker exists
-
-                    if (procChoice != null && ticker != null)
-                    {
-                        if (procChoice.Equals("1"))
-                        {
-                            Get52WeekHigh(ticker);
-                        }
-                        else if (procChoice.Equals("2"))
-                        {
-                            Get52WeekLow(ticker);
-                        }
-                        else if (procChoice.Equals("3"))
-                        {
-                            Get52DayMovingAvg(ticker);
-                        }
-                        else
-                        {
-                            Console.WriteLine("Invalid choice.");
-                        }
-                    }
+                    await DownloadZipAsync(Constants.PricesUrl, Constants.PricesZip);
+                    ExtractZipFile(Constants.PricesZip, Constants.PricesDir);
                 }
-                else
-                {
-                    Usage();
-                }
+
+                LoadTickerData();
+                //LoadPriceData();
             }
             catch (Exception ex)
             {
                 Console.WriteLine($"An exception occured: {ex.Message}");
             }
             Update("Main", "Exiting Main");
-        }
-
-        static void Usage()
-        {
-            Console.WriteLine("Usage: program.exe [function]");
-            Console.WriteLine("\tfunction: Which basic function do you want to perform?");
-            Console.WriteLine("\t\t1 - Retrieve data and load into database");
-            Console.WriteLine("\t\t2 - Call a stored procedure on the database");
         }
 
         static async Task DownloadZipAsync(string url, string outputPath)
@@ -207,12 +149,10 @@ namespace EquityDataProcessingAnalysis
                 using (SqlConnection dbConn = new SqlConnection(Constants.connectionstring))
                 {
                     dbConn.Open();
-                    Update("LoadPriceData", "Database connection opened");
+                    Console.WriteLine(dbConn.Database);
 
                     var lines = File.ReadLines(Constants.PricesCSV);
-                    Update("LoadPriceData", "Price CSV read");
 
-                    Update("LoadPriceData", "Beginning write queries");
                     for (int i = 1; i < 2/*lines.Count()*/; i++)
                     {
                         string line = lines.ElementAt(i);
@@ -263,65 +203,6 @@ namespace EquityDataProcessingAnalysis
             }
         }
 
-        public static void Get52WeekHigh(string ticker)
-        {
-            Update("Get52WeekHigh", "Generating arguments");
-            Tuple<string, string> args = Tuple.Create("TickerID", ticker);
-            List<Tuple<string, string>> argList = new List<Tuple<string, string>> { args };
-
-            Update("Get52WeekHigh", "Calling stored proc");
-            CallStoredProc(Constants.proc_52_week_high, argList);
-        }
-
-        public static void Get52WeekLow(string ticker)
-        {
-            Update("Get52WeekLow", "Generating arguments");
-            Tuple<string, string> args = Tuple.Create("TickerID", ticker);
-            List<Tuple<string, string>> argList = new List<Tuple<string, string>> { args };
-
-            Update("Get52WeekLow", "Calling stored proc");
-            CallStoredProc(Constants.proc_52_week_low, argList);
-        }
-
-        public static void Get52DayMovingAvg(string ticker)
-        {
-            Update("Get52DayMovingAvg", "Generating arguments");
-            Tuple<string, string> args = Tuple.Create("TickerID", ticker);
-            List<Tuple<string, string>> argList = new List<Tuple<string, string>> { args };
-
-            Update("Get52DayMovingAvg", "Calling stored proc");
-            CallStoredProc(Constants.proc_52_day_moving_avg, argList);
-        }
-
-        public static void CallStoredProc(string procName, List<Tuple<string, string>> args)
-        {
-            try 
-            {
-                using (SqlConnection conn = new SqlConnection(Constants.connectionstring))
-                {
-                    conn.Open();
-
-                    SqlCommand cmd = new SqlCommand(procName, conn);
-                    cmd.CommandType = CommandType.StoredProcedure;
-
-                    for (int i = 0; i < args.Count; i++)
-                    {
-                        Tuple<string, string> curArg = args[i];
-                        cmd.Parameters.Add(new SqlParameter(curArg.Item1, curArg.Item2));
-                    }
-
-                    using (SqlDataReader rdr = cmd.ExecuteReader()) {
-                        while (rdr.Read()) {}
-                    }
-                }
-            }
-            catch (Exception e)
-            {
-                Update("CallStoredProc", $"Exception: {e.Message}");
-                throw;
-            }
-        }
-        
         public static void Update(string func, string msg)
         {
 #if DEBUG
@@ -344,9 +225,5 @@ namespace EquityDataProcessingAnalysis
         public const string PricesCSV = "prices/prices.csv";
 
         public const string connectionstring = "Data Source=GENERAL003;Initial Catalog=EDPA_DB;Integrated Security=True;Trust Server Certificate=True";
-
-        public const string proc_52_week_high = "Get_52_Week_High_Price";
-        public const string proc_52_week_low = "Get_52_Week_Low_Price";
-        public const string proc_52_day_moving_avg = "Get_52_day_moving_average";
     }
 }
