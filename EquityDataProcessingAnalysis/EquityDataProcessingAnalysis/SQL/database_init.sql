@@ -4,7 +4,7 @@ USE EBDA_DB
 CREATE TABLE Prices(
 	ticker_id int,
 	ticker varchar(100),
-	price_id int,
+	price_id int IDENTITY(1, 1) PRIMARY KEY,
 	price_date date,
 	price_open decimal,
 	price_high decimal,
